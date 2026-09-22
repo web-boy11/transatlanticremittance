@@ -1,0 +1,44 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tatf-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#f7dc87" />
+      <stop offset="50%" stopColor="#d4af37" />
+      <stop offset="100%" stopColor="#997517" />
+    </linearGradient>
+    <linearGradient id="tatf-navy" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#1e3a8a" />
+      <stop offset="100%" stopColor="#08142c" />
+    </linearGradient>
+    <radialGradient id="tatf-globe-radial" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stopColor="#2563eb" stopOpacity="0.4" />
+      <stop offset="100%" stopColor="#0a1a3a" stopOpacity="0.9" />
+    </radialGradient>
+  </defs>
+
+  <circle cx="60" cy="60" r="58" fill="url(#tatf-navy)" stroke="url(#tatf-gold)" stroke-width="3" />
+  <circle cx="60" cy="60" r="53" fill="none" stroke="#d4af37" stroke-width="0.75" stroke-dasharray="2 2" />
+
+  <circle cx="60" cy="60" r="39" fill="url(#tatf-globe-radial)" stroke="#60a5fa" stroke-width="1" />
+  <ellipse cx="60" cy="60" rx="36" ry="16" fill="none" stroke="#60a5fa" stroke-opacity="0.35" stroke-width="0.8" />
+  <ellipse cx="60" cy="60" rx="36" ry="28" fill="none" stroke="#60a5fa" stroke-opacity="0.25" stroke-width="0.8" />
+  <line x1="24" y1="60" x2="96" y2="60" stroke="#60a5fa" stroke-opacity="0.5" stroke-width="0.8" />
+  <ellipse cx="60" cy="60" rx="16" ry="36" fill="none" stroke="#60a5fa" stroke-opacity="0.3" stroke-width="0.8" />
+
+  <g transform="translate(60, 60)">
+    <polygon points="0,-24 4,-6 0,0" fill="#f8fafc" />
+    <polygon points="0,-24 -4,-6 0,0" fill="#94a3b8" />
+    <polygon points="0,24 -4,6 0,0" fill="#f8fafc" />
+    <polygon points="0,24 4,6 0,0" fill="#94a3b8" />
+    <polygon points="24,0 6,4 0,0" fill="#f8fafc" />
+    <polygon points="24,0 6,-4 0,0" fill="#94a3b8" />
+    <polygon points="-24,0 -6,-4 0,0" fill="#f8fafc" />
+    <polygon points="-24,0 -6,4 0,0" fill="#94a3b8" />
+
+    <polygon points="12,-12 4,-1 0,0" fill="url(#tatf-gold)" />
+    <polygon points="-12,-12 -1,-4 0,0" fill="url(#tatf-gold)" />
+    <polygon points="12,12 1,4 0,0" fill="url(#tatf-gold)" />
+    <polygon points="-12,12 -4,1 0,0" fill="url(#tatf-gold)" />
+
+    <circle cx="0" cy="0" r="4.5" fill="url(#tatf-gold)" stroke="#0a1428" stroke-width="1" />
+  </g>
+</svg>
