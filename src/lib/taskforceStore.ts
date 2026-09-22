@@ -1,11 +1,13 @@
 import type { Coin, OrganizationSettings } from '../config';
-import { DEFAULT_COINS, DEFAULT_ORG_SETTINGS } from '../config';
+import { DEFAULT_COINS, DEFAULT_ORG_SETTINGS, ADMIN_PASSCODE } from '../config';
 
 const COINS_STORAGE_KEY = 'tatf-coins-registry-v2';
 const ORG_STORAGE_KEY = 'tatf-org-settings-v2';
 const LOGS_STORAGE_KEY = 'tatf-audit-logs-v2';
 const AUTH_KEY = 'tatf-admin-authenticated';
 const LINK_KEY = 'tatf-admin-link-cleared';
+const PASSCODE_STORAGE_KEY = 'tatf-admin-passcode-v2';
+
 
 /**
  * The dispatch console is invisible to ordinary visitors. It only appears
@@ -122,11 +124,33 @@ export function resetToDefaults(): void {
   try {
     localStorage.removeItem(COINS_STORAGE_KEY);
     localStorage.removeItem(ORG_STORAGE_KEY);
+    localStorage.removeItem(PASSCODE_STORAGE_KEY);
     recordAuditLog('SYSTEM_RESET', 'Restored master transatlantic defaults');
   } catch {
     /* noop */
   }
 }
+
+/** Admin Passcode Management */
+export function getAdminPasscode(): string {
+  try {
+    const saved = localStorage.getItem(PASSCODE_STORAGE_KEY);
+    if (saved && saved.trim()) return saved.trim();
+  } catch {
+    /* fallback */
+  }
+  return ADMIN_PASSCODE;
+}
+
+export function saveAdminPasscode(newPasscode: string): void {
+  try {
+    localStorage.setItem(PASSCODE_STORAGE_KEY, newPasscode.trim());
+    recordAuditLog('ADMIN_PASSCODE_CHANGED', 'Administrative terminal passcode updated');
+  } catch {
+    /* noop */
+  }
+}
+
 
 /** Audit Logging for the Task Force record */
 export function getAuditLogs(): AuditRecord[] {

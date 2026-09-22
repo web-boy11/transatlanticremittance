@@ -19,9 +19,14 @@ import {
   Clock,
   Radio,
   FileSpreadsheet,
+  Key,
+  Eye,
+  EyeOff,
+  Link,
+  Check,
 } from 'lucide-react';
 import type { Coin, OrganizationSettings } from '../config';
-import { ADMIN_PASSCODE } from '../config';
+import { ADMIN_PASSCODE, ADMIN_LINK_KEY } from '../config';
 import {
   saveCoinRegistry,
   saveOrgSettings,
@@ -30,6 +35,8 @@ import {
   recordAuditLog,
   setAdminAuthenticated,
   isAdminAuthenticated,
+  getAdminPasscode,
+  saveAdminPasscode,
   type AuditRecord,
 } from '../lib/taskforceStore';
 import CoinBadge from './CoinBadge';
@@ -44,7 +51,7 @@ type Props = {
   onSignOut: () => void;
 };
 
-type Tab = 'DIRECTIVE' | 'WALLETS' | 'AUDIT' | 'CODE_EXPORT';
+type Tab = 'DIRECTIVE' | 'WALLETS' | 'SECURITY' | 'AUDIT' | 'CODE_EXPORT';
 
 export default function AuthenticAdminModal({
   open,
@@ -65,6 +72,15 @@ export default function AuthenticAdminModal({
   const [draftCoins, setDraftCoins] = useState<Coin[]>(coins);
   const [auditLogs, setAuditLogs] = useState<AuditRecord[]>([]);
 
+  // Passcode change states
+  const [currentActivePasscode, setCurrentActivePasscode] = useState(() => getAdminPasscode());
+  const [newPasscode, setNewPasscode] = useState('');
+  const [confirmPasscode, setConfirmPasscode] = useState('');
+  const [showCurrentPasscode, setShowCurrentPasscode] = useState(false);
+  const [showNewPasscode, setShowNewPasscode] = useState(false);
+  const [passcodeError, setPasscodeError] = useState<string | null>(null);
+  const [copiedLinkType, setCopiedLinkType] = useState<string | null>(null);
+
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -76,16 +92,22 @@ export default function AuthenticAdminModal({
       setDraftOrg(orgSettings);
       setDraftCoins(coins);
       setAuditLogs(getAuditLogs());
+      setCurrentActivePasscode(getAdminPasscode());
+      setNewPasscode('');
+      setConfirmPasscode('');
+      setPasscodeError(null);
     }
   }, [open, orgSettings, coins]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcode.trim() === ADMIN_PASSCODE.trim()) {
+    const activePasscode = getAdminPasscode().trim();
+    if (passcode.trim() === activePasscode) {
       setAuthed(true);
       setAdminAuthenticated(true);
       setAuthError(false);
       setAuditLogs(getAuditLogs());
+      setCurrentActivePasscode(activePasscode);
     } else {
       setAuthError(true);
     }
@@ -126,8 +148,46 @@ export default function AuthenticAdminModal({
     );
   };
 
+  const handleSavePasscode = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newPasscode.trim();
+    if (trimmed.length < 4) {
+      setPasscodeError('New passcode must be at least 4 characters long.');
+      return;
+    }
+    if (trimmed !== confirmPasscode.trim()) {
+      setPasscodeError('New passcode and confirmation do not match.');
+      return;
+    }
+    saveAdminPasscode(trimmed);
+    setCurrentActivePasscode(trimmed);
+    setNewPasscode('');
+    setConfirmPasscode('');
+    setPasscodeError(null);
+    setSavedBanner('Admin Terminal Access Passcode Successfully Changed');
+    setAuditLogs(getAuditLogs());
+    setTimeout(() => setSavedBanner(null), 3500);
+  };
+
+  const handleCopyLink = async (type: 'hash' | 'path' | 'query') => {
+    const origin = window.location.origin;
+    const url =
+      type === 'hash'
+        ? `${origin}/#admin`
+        : type === 'path'
+          ? `${origin}/admin`
+          : `${origin}/?admin`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedLinkType(type);
+      setTimeout(() => setCopiedLinkType(null), 2500);
+    } catch {
+      /* clipboard fallback */
+    }
+  };
+
   const handleReset = () => {
-    if (window.confirm('Reset all Task Force directive parameters and crypto addresses to official defaults?')) {
+    if (window.confirm('Reset all Task Force directive parameters, crypto addresses, and passcode to official defaults?')) {
       resetToDefaults();
       window.location.reload();
     }
@@ -142,6 +202,8 @@ export default function AuthenticAdminModal({
 
   // Generate clean source config code export
   const generatedConfigCode = `// Generated for src/config.ts
+export const ADMIN_PASSCODE = ${JSON.stringify(currentActivePasscode)};
+
 export const DEFAULT_ORG_SETTINGS: OrganizationSettings = ${JSON.stringify(draftOrg, null, 2)};
 
 export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
@@ -257,7 +319,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                         setPasscode(e.target.value);
                         setAuthError(false);
                       }}
-                      placeholder="Enter administrative credentials"
+                      placeholder="Enter administrative passcode"
                       className="w-full rounded-xl border border-slate-300 bg-slate-50/80 py-3 pr-4 pl-10 text-sm font-mono text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-3 focus:ring-blue-100 focus:outline-none"
                     />
                   </div>
@@ -266,7 +328,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                 {authError && (
                   <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700 font-medium">
                     <AlertTriangle className="size-4 shrink-0 text-red-600" />
-                    <span>Access Denied: Invalid cryptographic credentials provided.</span>
+                    <span>Access Denied: Invalid credentials provided.</span>
                   </div>
                 )}
 
@@ -278,7 +340,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                 </button>
 
                 <p className="text-[11px] text-slate-400 font-mono">
-                  Default credentials configured in <code className="text-slate-700 font-bold">src/config.ts</code> (ADMIN_PASSCODE)
+                  Default passcode: <code className="text-slate-700 font-bold">{ADMIN_PASSCODE}</code> (customizable in Security settings)
                 </p>
               </form>
             </div>
@@ -297,7 +359,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                   }`}
                 >
                   <Building2 className="size-3.5 text-blue-600" />
-                  <span>1. Directive & Invoicing Parameters</span>
+                  <span>1. Directive & Invoicing</span>
                 </button>
 
                 <button
@@ -310,7 +372,20 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                   }`}
                 >
                   <DollarSign className="size-3.5 text-blue-600" />
-                  <span>2. Cryptographic Clearing Vaults</span>
+                  <span>2. Clearing Vaults</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('SECURITY')}
+                  className={`flex items-center gap-2 border-b-2 py-3 px-4 text-xs font-bold font-mono uppercase transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'SECURITY'
+                      ? 'border-blue-600 text-blue-900 bg-white shadow-2xs'
+                      : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Key className="size-3.5 text-blue-600" />
+                  <span>3. Security & Passcode</span>
                 </button>
 
                 <button
@@ -323,7 +398,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                   }`}
                 >
                   <History className="size-3.5 text-blue-600" />
-                  <span>3. Bilateral Audit Log</span>
+                  <span>4. Audit Trail</span>
                 </button>
 
                 <button
@@ -336,7 +411,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                   }`}
                 >
                   <FileSpreadsheet className="size-3.5 text-blue-600" />
-                  <span>4. Permanent Code Export</span>
+                  <span>5. Code Export</span>
                 </button>
               </div>
 
@@ -447,7 +522,6 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                           />
                         </div>
                       </div>
-
                     </div>
 
                     <div className="text-xs">
@@ -597,7 +671,190 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                   </div>
                 )}
 
-                {/* ── TAB 3: BILATERAL AUDIT LOGS ── */}
+                {/* ── TAB 3: SECURITY & PASSCODE MANAGEMENT ── */}
+                {activeTab === 'SECURITY' && (
+                  <div className="space-y-6">
+                    {/* Passcode update section */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="grid size-9 place-items-center rounded-xl bg-blue-100 text-blue-700">
+                            <Key className="size-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900">Change Admin Access Passcode</h4>
+                            <p className="text-xs text-slate-500">Update the administrative terminal password immediately for this browser and future logins.</p>
+                          </div>
+                        </div>
+
+                        {/* Current Passcode Display Badge */}
+                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 shadow-2xs">
+                          <span className="text-[10.5px] font-mono text-slate-400 uppercase">Active:</span>
+                          <span className="font-mono text-xs font-bold text-slate-800">
+                            {showCurrentPasscode ? currentActivePasscode : '••••••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowCurrentPasscode(!showCurrentPasscode)}
+                            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                            title={showCurrentPasscode ? 'Hide passcode' : 'Show passcode'}
+                          >
+                            {showCurrentPasscode ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleSavePasscode} className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] font-bold font-mono tracking-wider text-slate-600 uppercase mb-1">
+                              New Passcode (Min 4 characters)
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showNewPasscode ? 'text' : 'password'}
+                                value={newPasscode}
+                                onChange={(e) => {
+                                  setNewPasscode(e.target.value);
+                                  setPasscodeError(null);
+                                }}
+                                placeholder="Enter new passcode"
+                                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 pl-3 font-mono text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowNewPasscode(!showNewPasscode)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                              >
+                                {showNewPasscode ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold font-mono tracking-wider text-slate-600 uppercase mb-1">
+                              Confirm New Passcode
+                            </label>
+                            <input
+                              type={showNewPasscode ? 'text' : 'password'}
+                              value={confirmPasscode}
+                              onChange={(e) => {
+                                setConfirmPasscode(e.target.value);
+                                setPasscodeError(null);
+                              }}
+                              placeholder="Re-enter new passcode"
+                              className="w-full rounded-xl border border-slate-300 bg-white p-2.5 font-mono text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {passcodeError && (
+                          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700 font-medium">
+                            <AlertTriangle className="size-4 shrink-0 text-red-600" />
+                            <span>{passcodeError}</span>
+                          </div>
+                        )}
+
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={!newPasscode || !confirmPasscode}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-700 text-white font-mono font-bold text-xs uppercase hover:bg-blue-800 shadow-md cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                          >
+                            <Save className="size-3.5" />
+                            <span>Update Passcode</span>
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+
+                    {/* Simple Admin Links Section */}
+                    <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
+                      <div className="flex items-center gap-2.5 mb-2">
+                        <div className="grid size-8 place-items-center rounded-lg bg-blue-600 text-white">
+                          <Link className="size-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-blue-950">Simple Admin Links</h4>
+                          <p className="text-xs text-slate-600">The dispatch console can be accessed instantly using any of the following simplified shortcuts:</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                        {/* Option 1: #admin */}
+                        <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex flex-col justify-between shadow-2xs">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-blue-600 uppercase tracking-widest block mb-1">
+                              RECOMMENDED
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-900 block break-all">
+                              /#admin
+                            </span>
+                            <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                              Direct hash slug. Works 100% reliably on Cloudflare Pages static hosting.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink('hash')}
+                            className="mt-3 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition cursor-pointer"
+                          >
+                            {copiedLinkType === 'hash' ? <Check className="size-3.5 text-emerald-600" /> : <ClipboardCopy className="size-3.5" />}
+                            <span>{copiedLinkType === 'hash' ? 'Copied!' : 'Copy /#admin'}</span>
+                          </button>
+                        </div>
+
+                        {/* Option 2: /admin */}
+                        <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex flex-col justify-between shadow-2xs">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest block mb-1">
+                              DIRECT PATH
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-900 block break-all">
+                              /admin
+                            </span>
+                            <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                              Standard intuitive URL path. Automatically opens the officer terminal.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink('path')}
+                            className="mt-3 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition cursor-pointer"
+                          >
+                            {copiedLinkType === 'path' ? <Check className="size-3.5 text-emerald-600" /> : <ClipboardCopy className="size-3.5" />}
+                            <span>{copiedLinkType === 'path' ? 'Copied!' : 'Copy /admin'}</span>
+                          </button>
+                        </div>
+
+                        {/* Option 3: ?admin */}
+                        <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex flex-col justify-between shadow-2xs">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest block mb-1">
+                              QUERY PARAM
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-900 block break-all">
+                              /?admin
+                            </span>
+                            <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                              Simple query parameter. Easy to bookmark and share with duty comptrollers.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink('query')}
+                            className="mt-3 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition cursor-pointer"
+                          >
+                            {copiedLinkType === 'query' ? <Check className="size-3.5 text-emerald-600" /> : <ClipboardCopy className="size-3.5" />}
+                            <span>{copiedLinkType === 'query' ? 'Copied!' : 'Copy /?admin'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TAB 4: BILATERAL AUDIT LOGS ── */}
                 {activeTab === 'AUDIT' && (
                   <div className="space-y-4">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs">
@@ -606,7 +863,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                         <span>Security & Financial Audit Trail</span>
                       </div>
                       <p className="text-slate-600">
-                        Every terminal session, address change, and directive modification is recorded locally with cryptographic timestamps for accountability.
+                        Every terminal session, address change, passcode update, and directive modification is recorded locally with cryptographic timestamps for accountability.
                       </p>
                     </div>
 
@@ -647,7 +904,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                   </div>
                 )}
 
-                {/* ── TAB 4: PERMANENT CODE EXPORT ── */}
+                {/* ── TAB 5: PERMANENT CODE EXPORT ── */}
                 {activeTab === 'CODE_EXPORT' && (
                   <div className="space-y-4">
                     <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 text-xs text-blue-900">
@@ -666,7 +923,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                         </button>
                       </div>
                       <p className="text-slate-600 mt-1 leading-relaxed">
-                        To permanently bake these exact addresses and parameters into the production build so every visitor on any computer sees them without using browser storage, paste this code into <code className="font-mono font-bold text-slate-800">src/config.ts</code>.
+                        To permanently bake these exact addresses, passcodes, and parameters into the production build so every visitor on any computer sees them without using browser storage, paste this code into <code className="font-mono font-bold text-slate-800">src/config.ts</code>.
                       </p>
                     </div>
 

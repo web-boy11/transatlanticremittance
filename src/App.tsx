@@ -78,31 +78,41 @@ export default function App() {
     [activeCoins, coinId, coins]
   );
 
-  /* ── Secret Command Link Detection ─── */
+  /* ── Simple Admin Link Detection (/admin, #admin, ?admin) ─── */
   useEffect(() => {
-    try {
-      const searchParams = new URLSearchParams(window.location.search);
-      const hash = window.location.hash.replace(/^#/, '');
-      const hashParams = new URLSearchParams(hash);
+    const checkAdminTrigger = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
+        const pathname = window.location.pathname.toLowerCase().replace(/\/$/, '');
+        const queryAdmin = searchParams.get('admin');
+        const expected = ADMIN_LINK_KEY.trim().toLowerCase();
 
-      const queryAdmin = searchParams.get('admin');
-      const hashAdmin = hashParams.get('admin');
-      const expected = ADMIN_LINK_KEY.trim().toLowerCase();
+        const matched =
+          pathname === '/admin' ||
+          pathname.endsWith('/admin') ||
+          hash === 'admin' ||
+          hash === expected ||
+          searchParams.has('admin') ||
+          (queryAdmin !== null && (queryAdmin.trim().toLowerCase() === expected || queryAdmin === ''));
 
-      const matchedParam =
-        (queryAdmin && queryAdmin.trim().toLowerCase() === expected) ||
-        (hashAdmin && hashAdmin.trim().toLowerCase() === expected) ||
-        hash.toLowerCase() === 'admin' ||
-        searchParams.has('admin');
-
-      if (matchedParam) {
-        grantAdminLinkAccess();
-        setConsoleRevealed(true);
-        setAdminOpen(true);
+        if (matched) {
+          grantAdminLinkAccess();
+          setConsoleRevealed(true);
+          setAdminOpen(true);
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
-    }
+    };
+
+    checkAdminTrigger();
+    window.addEventListener('hashchange', checkAdminTrigger);
+    window.addEventListener('popstate', checkAdminTrigger);
+    return () => {
+      window.removeEventListener('hashchange', checkAdminTrigger);
+      window.removeEventListener('popstate', checkAdminTrigger);
+    };
   }, []);
 
   /* ── Exchange Rates ─── */

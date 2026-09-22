@@ -222,10 +222,10 @@ export const DEFAULT_ORG_SETTINGS: OrganizationSettings = {
 export const ADMIN_PASSCODE = 'taskforce-admin-2026';
 
 /**
- * Private command link slug. The dispatch console stays invisible to
- * ordinary visitors — it is only revealed when this key is presented:
- *
- *   https://your-site.com/#admin          (short form also works)
- *   https://your-site.com/?admin=tatf-command
+ * Simple command link slug:
+ *   https://your-site.com/#admin
+ *   https://your-site.com/?admin
+ *   https://your-site.com/admin
  */
-export const ADMIN_LINK_KEY = 'tatf-command';
+export const ADMIN_LINK_KEY = 'admin';
+
