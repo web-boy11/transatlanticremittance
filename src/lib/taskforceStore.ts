@@ -69,32 +69,38 @@ export function loadCoinRegistry(): Coin[] {
     if (!raw) return DEFAULT_COINS;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      // Re-hydrate regex pattern from source definition
-      return parsed.map((c) => {
-        const def = DEFAULT_COINS.find((d) => d.id === c.id);
+      // Merge saved addresses/configs into default coins structure
+      return DEFAULT_COINS.map((def) => {
+        const saved = parsed.find((p: any) => p && p.id === def.id);
+        if (!saved) return def;
         return {
-          ...c,
-          txidPattern: def ? def.txidPattern : /^[0-9a-zA-Z]{32,128}$/,
+          ...def,
+          ...saved,
+          address: typeof saved.address === 'string' && saved.address.trim() ? saved.address.trim() : def.address,
+          requiredConfirmations: typeof saved.requiredConfirmations === 'number' ? saved.requiredConfirmations : def.requiredConfirmations,
+          enabled: typeof saved.enabled === 'boolean' ? saved.enabled : def.enabled,
+          txidPattern: def.txidPattern,
         };
       });
     }
-  } catch {
-    /* fallback */
+  } catch (err) {
+    console.error('Failed to load coin registry:', err);
   }
   return DEFAULT_COINS;
 }
 
 export function saveCoinRegistry(coins: Coin[]): void {
   try {
-    // Exclude regex from JSON serialization
+    // Exclude regex from JSON serialization and ensure addresses are trimmed
     const clean = coins.map((c) => ({
       ...c,
+      address: typeof c.address === 'string' ? c.address.trim() : c.address,
       txidPattern: undefined,
     }));
     localStorage.setItem(COINS_STORAGE_KEY, JSON.stringify(clean));
     recordAuditLog('COIN_REGISTRY_UPDATED', `Updated ${coins.length} clearing rails and addresses`);
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.error('Failed to save coin registry:', err);
   }
 }
 
@@ -105,7 +111,8 @@ export function loadOrgSettings(): OrganizationSettings {
     if (!raw) return DEFAULT_ORG_SETTINGS;
     const parsed = JSON.parse(raw);
     return { ...DEFAULT_ORG_SETTINGS, ...parsed };
-  } catch {
+  } catch (err) {
+    console.error('Failed to load org settings:', err);
     return DEFAULT_ORG_SETTINGS;
   }
 }
@@ -114,10 +121,11 @@ export function saveOrgSettings(settings: OrganizationSettings): void {
   try {
     localStorage.setItem(ORG_STORAGE_KEY, JSON.stringify(settings));
     recordAuditLog('DIRECTIVE_SETTINGS_SAVED', `Updated case ref: ${settings.caseReference}, amount: $${settings.fiatAmount}`);
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.error('Failed to save org settings:', err);
   }
 }
+
 
 /** Reset all configuration to official defaults */
 export function resetToDefaults(): void {

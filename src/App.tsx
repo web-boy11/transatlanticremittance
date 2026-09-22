@@ -239,12 +239,14 @@ export default function App() {
   }, [windowMs, loadRates]);
 
   const handleAdminCoinsUpdate = (newCoins: Coin[]) => {
-    setCoins(newCoins);
+    setCoins([...newCoins]);
   };
 
   const handleAdminOrgUpdate = (newOrg: OrganizationSettings) => {
-    setOrgSettings(newOrg);
+    setOrgSettings({ ...newOrg });
+    setExpiresAt(Date.now() + (newOrg.windowMinutes || 30) * 60_000);
   };
+
 
   return (
     <div className="min-h-screen flex flex-col bg-transatlantic-grid text-slate-800">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Shield,
@@ -26,10 +26,12 @@ import {
   Check,
 } from 'lucide-react';
 import type { Coin, OrganizationSettings } from '../config';
-import { ADMIN_PASSCODE, ADMIN_LINK_KEY } from '../config';
+import { ADMIN_PASSCODE } from '../config';
 import {
   saveCoinRegistry,
+  loadCoinRegistry,
   saveOrgSettings,
+  loadOrgSettings,
   resetToDefaults,
   getAuditLogs,
   recordAuditLog,
@@ -68,8 +70,8 @@ export default function AuthenticAdminModal({
   const [activeTab, setActiveTab] = useState<Tab>('DIRECTIVE');
 
   // Working drafts
-  const [draftOrg, setDraftOrg] = useState<OrganizationSettings>(orgSettings);
-  const [draftCoins, setDraftCoins] = useState<Coin[]>(coins);
+  const [draftOrg, setDraftOrg] = useState<OrganizationSettings>(() => loadOrgSettings());
+  const [draftCoins, setDraftCoins] = useState<Coin[]>(() => loadCoinRegistry());
   const [auditLogs, setAuditLogs] = useState<AuditRecord[]>([]);
 
   // Passcode change states
@@ -84,20 +86,24 @@ export default function AuthenticAdminModal({
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  const prevOpenRef = useRef(false);
+
+  // Initialize draft states ONLY when modal is newly opened, not on every prop update
   useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
       setAuthed(isAdminAuthenticated());
       setPasscode('');
       setAuthError(false);
-      setDraftOrg(orgSettings);
-      setDraftCoins(coins);
+      setDraftOrg(loadOrgSettings());
+      setDraftCoins(loadCoinRegistry());
       setAuditLogs(getAuditLogs());
       setCurrentActivePasscode(getAdminPasscode());
       setNewPasscode('');
       setConfirmPasscode('');
       setPasscodeError(null);
     }
-  }, [open, orgSettings, coins]);
+    prevOpenRef.current = open;
+  }, [open]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,21 +119,29 @@ export default function AuthenticAdminModal({
     }
   };
 
+  /** Unified Save function that reliably applies both wallet addresses and directive settings */
+  const handleSaveAll = () => {
+    const cleanedCoins = draftCoins.map((c) => ({
+      ...c,
+      address: typeof c.address === 'string' ? c.address.trim() : c.address,
+    }));
+    saveCoinRegistry(cleanedCoins);
+    saveOrgSettings(draftOrg);
+    onCoinsUpdated([...cleanedCoins]);
+    onOrgSettingsUpdated({ ...draftOrg });
+    setDraftCoins(cleanedCoins);
+    setSavedBanner('✓ All Clearing Vaults and Directive Settings Successfully Applied & Saved!');
+    setAuditLogs(getAuditLogs());
+    setTimeout(() => setSavedBanner(null), 3500);
+  };
+
   const handleSaveOrg = (e: React.FormEvent) => {
     e.preventDefault();
-    saveOrgSettings(draftOrg);
-    onOrgSettingsUpdated(draftOrg);
-    setSavedBanner('Task Force Directive & Operational Parameters Successfully Updated');
-    setAuditLogs(getAuditLogs());
-    setTimeout(() => setSavedBanner(null), 3000);
+    handleSaveAll();
   };
 
   const handleSaveCoins = () => {
-    saveCoinRegistry(draftCoins);
-    onCoinsUpdated(draftCoins);
-    setSavedBanner('Cryptocurrency Clearing Rails & Custodial Addresses Saved');
-    setAuditLogs(getAuditLogs());
-    setTimeout(() => setSavedBanner(null), 3000);
+    handleSaveAll();
   };
 
   const handleToggleCoin = (id: string) => {
@@ -138,7 +152,7 @@ export default function AuthenticAdminModal({
 
   const handleUpdateCoinAddress = (id: string, address: string) => {
     setDraftCoins((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, address: address.trim() } : c))
+      prev.map((c) => (c.id === id ? { ...c, address } : c))
     );
   };
 
@@ -207,7 +221,11 @@ export const ADMIN_PASSCODE = ${JSON.stringify(currentActivePasscode)};
 export const DEFAULT_ORG_SETTINGS: OrganizationSettings = ${JSON.stringify(draftOrg, null, 2)};
 
 export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
-    draftCoins.map((c) => ({ ...c, txidPattern: undefined })),
+    draftCoins.map((c) => ({
+      ...c,
+      address: typeof c.address === 'string' ? c.address.trim() : c.address,
+      txidPattern: undefined,
+    })),
     null,
     2
   )};
@@ -265,6 +283,17 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
             </div>
 
             <div className="flex items-center gap-2">
+              {authed && (
+                <button
+                  type="button"
+                  onClick={handleSaveAll}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold transition shadow-sm cursor-pointer"
+                  title="Save all changes across Directive and Wallets tabs"
+                >
+                  <Save className="size-3.5" />
+                  <span>APPLY & SAVE ALL</span>
+                </button>
+              )}
               {authed && (
                 <button
                   type="button"
@@ -417,12 +446,12 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
 
               {/* Status Banner */}
               {savedBanner && (
-                <div className="bg-emerald-600 text-white text-xs font-semibold font-mono py-2 px-6 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <CheckCircle2 className="size-4" />
+                <div className="bg-emerald-600 text-white text-xs font-semibold font-mono py-2.5 px-6 flex items-center justify-between shadow-xs">
+                  <span className="flex items-center gap-2 font-bold">
+                    <CheckCircle2 className="size-4.5" />
                     <span>{savedBanner}</span>
                   </span>
-                  <span className="text-[10px] opacity-80">ACTIVE IMMEDIATELY</span>
+                  <span className="text-[10px] bg-emerald-700/60 px-2 py-0.5 rounded font-mono">ACTIVE ON PAGE</span>
                 </div>
               )}
 
@@ -431,14 +460,25 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                 {/* ── TAB 1: DIRECTIVE & INVOICE PARAMETERS ── */}
                 {activeTab === 'DIRECTIVE' && (
                   <form onSubmit={handleSaveOrg} className="space-y-6">
-                    <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-xs text-blue-900">
-                      <div className="flex items-center gap-2 font-bold mb-1">
-                        <Sliders className="size-4 text-blue-600" />
-                        <span>Command Directive Settings</span>
+                    <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-xs text-blue-900 flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 font-bold mb-1">
+                          <Sliders className="size-4 text-blue-600" />
+                          <span>Command Directive Settings</span>
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">
+                          Control the organization banner, invoice case identification, target fiat settlement amount, and compliance statements shown to paying entities.
+                        </p>
                       </div>
-                      <p className="text-slate-600 leading-relaxed">
-                        Control the organization banner, invoice case identification, target fiat settlement amount, and compliance statements shown to paying entities.
-                      </p>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveAll}
+                        className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-mono font-bold hover:bg-emerald-500 shadow-sm cursor-pointer"
+                      >
+                        <Save className="size-3.5" />
+                        <span>Save Directive</span>
+                      </button>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -563,7 +603,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                         className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-700 text-white font-bold text-xs uppercase font-mono hover:bg-blue-800 shadow-md cursor-pointer"
                       >
                         <Save className="size-4" />
-                        <span>Apply Directive Changes</span>
+                        <span>Apply & Save Directive Changes</span>
                       </button>
                     </div>
                   </form>
@@ -585,8 +625,8 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
 
                       <button
                         type="button"
-                        onClick={handleSaveCoins}
-                        className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 text-white text-xs font-mono font-bold hover:bg-blue-800 shadow-sm cursor-pointer"
+                        onClick={handleSaveAll}
+                        className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-mono font-bold hover:bg-emerald-500 shadow-sm cursor-pointer"
                       >
                         <Save className="size-3.5" />
                         <span>Save All Vaults</span>
@@ -661,7 +701,7 @@ export const DEFAULT_COINS: Coin[] = ${JSON.stringify(
                     <div className="flex justify-end pt-4 border-t border-slate-200">
                       <button
                         type="button"
-                        onClick={handleSaveCoins}
+                        onClick={handleSaveAll}
                         className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-700 text-white font-bold text-xs uppercase font-mono hover:bg-blue-800 shadow-md cursor-pointer"
                       >
                         <Save className="size-4" />
